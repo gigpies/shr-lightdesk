@@ -9,11 +9,14 @@ use shr_instrument_panel::{
     scene,
     terminal::{
         Console,
-        ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+        ratatui::crossterm::event::{
+            self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+        },
     },
 };
 use std::{path::PathBuf, time::Duration};
 struct App {
+    controller: crate::controller_surface::Surface,
     worker: Worker,
     keyboard: frontend::Keyboard,
     notice: String,
@@ -41,13 +44,23 @@ impl App {
         }
     }
     fn lost(&mut self) {
+        self.controller.lost();
         self.worker.invalidate();
         self.keyboard.context_lost();
         self.review_seen = None;
         self.review_context = None;
     }
+    fn gesture(&mut self, gesture: crate::controller_surface::Gesture) {
+        let view = self.worker.view.lock().unwrap().current();
+        self.controller.scroll = self.keyboard.scroll;
+        if let Err(e) = self.controller.gesture(gesture, &view, &self.worker) {
+            self.notice = e;
+        }
+        self.keyboard.scroll = self.controller.scroll;
+    }
     fn key(&mut self, code: KeyCode) {
         match code {
+            KeyCode::F(10) => self.gesture(crate::controller_surface::Gesture::Menu),
             KeyCode::Enter => {
                 if let Some(line) = self.keyboard.enter() {
                     if self.command_mode {
@@ -202,6 +215,7 @@ pub fn run(
 ) -> Result<(), String> {
     let mut console = Console::open().map_err(|e| e.to_string())?;
     let mut app = App {
+        controller: crate::controller_surface::Surface::new(epoch),
         worker: Worker::spawn_with_role(path, show, epoch, role),
         keyboard: frontend::Keyboard::default(),
         notice: String::new(),
@@ -227,17 +241,17 @@ pub fn run(
                 app.review_seen = None;
                 app.review_context = view.review_context;
             }
-            let s = primitives(&frontend::scene(
-                &view,
-                &app.keyboard.draft,
-                app.keyboard.scroll,
-            ));
+            let s = primitives(&if app.controller.open {
+                app.controller.scene(&view)
+            } else {
+                frontend::scene(&view, &app.keyboard.draft, app.keyboard.scroll)
+            });
             let mut visible = false;
             let material = console.material;
             console
                 .terminal
                 .draw(|f| {
-                    visible = if view.page != "scenes" {
+                    visible = if view.page != "scenes" && !app.controller.open {
                         scene::instrument_text(
                             &s,
                             f.buffer_mut(),
@@ -257,9 +271,34 @@ pub fn run(
                     } else {
                         scene::draw(&s, f.buffer_mut(), material)
                     };
+                    if visible {
+                        use shr_instrument_panel::terminal::ratatui::{
+                            layout::Rect, widgets::Paragraph,
+                        };
+                        let area = f.area();
+                        let items = app.controller.items(&view);
+                        let selected = app.controller.selected.min(items.len().saturating_sub(1));
+                        let label = format!(
+                            "{:<8}{:<8}{:<8}{:<8}{:<8}{:<8}{:<8}{:<8} | {}",
+                            "Prev",
+                            "Next",
+                            "Choose",
+                            "Cancel",
+                            "Char-",
+                            "Char+",
+                            "Add",
+                            "Delete",
+                            items.get(selected).map_or("", |i| i.label)
+                        );
+                        f.render_widget(
+                            Paragraph::new(label),
+                            Rect::new(0, area.height - 1, area.width, 1),
+                        );
+                    }
                 })
                 .map_err(|e| e.to_string())?;
             if visible
+                && !app.controller.open
                 && let Some((context, start, through)) =
                     frontend::visible_review_range(&view, app.keyboard.scroll)
                 && app.review_seen != Some((context, start, through))
@@ -298,6 +337,37 @@ pub fn run(
                         } else {
                             app.key(k.code);
                         }
+                    }
+                    Event::Mouse(mouse)
+                        if visible
+                            && mouse.row + 1
+                                == console.terminal.size().map_err(|e| e.to_string())?.height
+                            && mouse.column < 64 =>
+                    {
+                        let index = usize::from(mouse.column / 8);
+                        let gesture = match mouse.kind {
+                            MouseEventKind::Down(MouseButton::Left) => {
+                                Some(crate::controller_surface::Gesture::Pad {
+                                    index,
+                                    pressed: true,
+                                })
+                            }
+                            MouseEventKind::Up(MouseButton::Left) => {
+                                Some(crate::controller_surface::Gesture::Pad {
+                                    index,
+                                    pressed: false,
+                                })
+                            }
+                            _ => None,
+                        };
+                        if let Some(gesture) = gesture {
+                            app.gesture(gesture);
+                        }
+                    }
+                    Event::Mouse(mouse)
+                        if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left)) =>
+                    {
+                        app.gesture(crate::controller_surface::Gesture::CancelPress);
                     }
                     Event::FocusLost => {
                         app.keyboard.focus(false);

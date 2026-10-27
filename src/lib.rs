@@ -27,3 +27,5 @@ pub mod music;
 pub mod scenes;
 
 pub mod terminal;
+
+pub mod controller_surface;

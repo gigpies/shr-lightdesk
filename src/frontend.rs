@@ -264,6 +264,17 @@ pub fn scene(v: &View, draft: &str, scroll: usize) -> Scene {
                         crate::model::Attribute::Intensity => "INTENSITY: percent",
                     },
                     Editor::Existing(_) => "RECORD ID",
+                    Editor::Console { kind, .. } => match kind {
+                        crate::native_actions::ConsoleEditor::SceneImport =>
+                            "IMPORT SCENE MAP: path",
+                        crate::native_actions::ConsoleEditor::SceneExport =>
+                            "EXPORT SCENE MAP: path",
+                        crate::native_actions::ConsoleEditor::Master => "GRAND MASTER: percent",
+                        crate::native_actions::ConsoleEditor::ReleaseMask =>
+                            "RELEASE: attribute names",
+                        crate::native_actions::ConsoleEditor::SceneGrant =>
+                            "SCENE GRANT: intensity% color% TTLms",
+                    },
                     Editor::Go(_) => "GO: CUE PLAYBACK",
                     Editor::SceneEdit(_) => "SCENE: ID FIELD VALUES (integer tenths-percent)",
                     Editor::ScenePreview(_) => "OWNER PREVIEW: SCENE_ID",
@@ -1185,6 +1196,7 @@ pub fn script_action(line: &str, view: &View) -> Result<Semantic, String> {
     })
 }
 struct Intent {
+    released: bool,
     generation: u64,
     payload: Payload,
 }
@@ -1299,6 +1311,7 @@ impl Worker {
                                 ),
                                 Payload::Semantic(
                                     Semantic::EnterUp
+                                    | Semantic::ToggleFocused
                                     | Semantic::Scenes
                                     | Semantic::Reviewed { .. }
                                     | Semantic::Bank(_)
@@ -1361,6 +1374,9 @@ impl Worker {
                                     }
                                 }
                             };
+                            if intent.released {
+                                operator.input.release();
+                            }
                             match result {
                                 Ok((running, text)) => {
                                     if disconnect_requested {
@@ -1392,6 +1408,9 @@ impl Worker {
                                     {
                                         Ok(mut connected) => {
                                             let _ = connected.input.lost();
+                                            if intent.released {
+                                                connected.input.release();
+                                            }
                                             op = Some(connected);
                                             observing = true;
                                             notice = "Reconnected; release Enter then grant; old intents discarded".into();
@@ -1502,6 +1521,9 @@ impl Worker {
             role,
         }
     }
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
     pub fn invalidate(&self) {
         let _ = self
             .generation
@@ -1515,12 +1537,34 @@ impl Worker {
             return Err("typed input bound256 bytes".into());
         }
         let intent = Intent {
+            released: false,
             generation: self.generation.load(Ordering::Acquire),
             payload: Payload::Line(line),
         };
         self.submit(intent)
     }
     pub fn action(&self, action: Semantic) -> Result<(), String> {
+        self.semantic(action, false)
+    }
+    /// One completed controller press/release is one queue item; release cannot hide a refusal.
+    pub fn controller_action(&self, action: Semantic) -> Result<(), String> {
+        self.semantic(action, true)
+    }
+    pub fn controller_reconnect(&self, epoch: u64) -> Result<(), String> {
+        self.invalidate();
+        self.submit(Intent {
+            released: true,
+            generation: self.generation(),
+            payload: Payload::Line(format!("reconnect {epoch}")),
+        })
+    }
+    pub fn controller_action_at(&self, action: Semantic, generation: u64) -> Result<(), String> {
+        self.semantic_at(action, true, generation)
+    }
+    fn semantic(&self, action: Semantic, released: bool) -> Result<(), String> {
+        self.semantic_at(action, released, self.generation())
+    }
+    fn semantic_at(&self, action: Semantic, released: bool, generation: u64) -> Result<(), String> {
         if matches!(&action,Semantic::Action(crate::surface::actions::Action::Text(text)) if text.len()>128)
             || matches!(&action,Semantic::Action(crate::surface::actions::Action::Select(slots)) if slots.len()>32)
         {
@@ -1530,11 +1574,15 @@ impl Worker {
             return Err("input generation exhausted".into());
         }
         self.submit(Intent {
-            generation: self.generation.load(Ordering::Acquire),
+            released,
+            generation,
             payload: Payload::Semantic(action),
         })
     }
     fn submit(&self, intent: Intent) -> Result<(), String> {
+        if intent.generation == u64::MAX || intent.generation != self.generation() {
+            return Err("stale or exhausted input generation".into());
+        }
         match self.input.try_send(intent) {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_)) => {

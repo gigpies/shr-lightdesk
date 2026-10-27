@@ -214,3 +214,52 @@ fn read_only_io_exception_never_authorizes_a_grant_on_a_fresh_connection() {
     assert!(!client.authority.writable(client.now()));
     drop(client);
 }
+
+#[test]
+fn controller_menu_selection_uses_live_worker_and_cannot_grant_without_role() {
+    use shr_lightdesk::controller_surface::{Gesture, Surface};
+    let server = Observer::start();
+    let worker = Worker::spawn(server.path.clone(), SHOW.into(), 9);
+    wait(|| worker.view.lock().unwrap().freshness == "Fresh");
+    let mut surface = Surface::new(9);
+    let choose = |surface: &mut Surface, label: &str| {
+        let view = worker.view.lock().unwrap().current();
+        surface.selected = surface
+            .items(&view)
+            .iter()
+            .position(|i| i.label == label)
+            .unwrap();
+        surface
+            .gesture(
+                Gesture::Pad {
+                    index: 2,
+                    pressed: true,
+                },
+                &view,
+                &worker,
+            )
+            .unwrap();
+        surface
+            .gesture(
+                Gesture::Pad {
+                    index: 2,
+                    pressed: false,
+                },
+                &view,
+                &worker,
+            )
+            .unwrap();
+    };
+    choose(&mut surface, "Select focused fixture");
+    wait(|| !worker.view.lock().unwrap().selected.is_empty());
+    choose(&mut surface, "Add / remove focused fixture");
+    wait(|| worker.view.lock().unwrap().selected.is_empty());
+    choose(&mut surface, "Request control");
+    wait(|| {
+        let v = worker.view.lock().unwrap();
+        v.command_error.as_ref().is_some_and(|e| e.contains("GP09"))
+    });
+    assert!(!worker.view.lock().unwrap().lease);
+    drop(worker);
+    drop(server);
+}

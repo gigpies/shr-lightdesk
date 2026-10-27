@@ -810,3 +810,148 @@ fn configured_analysis_calibration_scoped_auto_and_source_loss() {
     assert_eq!(i["mode"], "manual");
     assert_eq!(i["snapshot"]["fixtures"][0]["attributes"][0]["resolved"], 0);
 }
+
+#[test]
+#[ignore = "explicit accepted role/Lux executables; isolated null-output controller workflow"]
+fn controller_menu_real_provider_value_and_material_review() {
+    use shr_lightdesk::controller_surface::{MidiBinding, Surface};
+    let broker = PathBuf::from(std::env::var("GP_ROLE_BROKER").expect("explicit broker"));
+    let lux = PathBuf::from(std::env::var("GP_LUX_PROVIDER").expect("explicit Lux"));
+    let mut scope = Scope::new();
+    let role_dir = scope.dir("roles");
+    let lux_dir = scope.dir("lux");
+    scope.children.push(
+        Command::new(lux)
+            .args([
+                "--synthetic-private-dir",
+                lux_dir.to_str().unwrap(),
+                "--durable",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    wait(|| lux_dir.join("lux.sock").exists());
+    let worker = Worker::spawn_with_role(
+        lux_dir.join("lux.sock"),
+        "11111111-1111-4111-8111-111111111111".into(),
+        1,
+        Some(lighting_config(broker, role_dir, "0")),
+    );
+    wait(|| {
+        let v = worker.view.lock().unwrap();
+        v.inventory.is_some() && v.role_live
+    });
+    let binding =
+        MidiBinding::new("controller-b".into(), 9, [36, 37, 38, 39, 40, 41, 42, 43]).unwrap();
+    let mut surface = Surface::new(1);
+    let pad = |surface: &mut Surface, index: u8| {
+        let generation = worker.generation();
+        surface
+            .midi(
+                &binding,
+                "controller-b",
+                &[0x99, 36 + index, 127],
+                generation,
+                &worker,
+            )
+            .unwrap();
+        surface
+            .midi(
+                &binding,
+                "controller-b",
+                &[0x99, 36 + index, 0],
+                generation,
+                &worker,
+            )
+            .unwrap();
+    };
+    let choose = |surface: &mut Surface, label: &str| {
+        let v = worker.view.lock().unwrap().current();
+        let target = surface
+            .items(&v)
+            .iter()
+            .position(|i| i.label == label)
+            .unwrap();
+        for _ in 0..surface.items(&v).len() {
+            if surface.selected == target {
+                break;
+            }
+            pad(surface, 1);
+        }
+        assert_eq!(surface.selected, target);
+        let before = worker.view.lock().unwrap().completed;
+        pad(surface, 2);
+        wait(|| worker.view.lock().unwrap().completed > before);
+        worker.view.lock().unwrap().current()
+    };
+    assert!(choose(&mut surface, "Request control").lease);
+    assert!(
+        !choose(&mut surface, "Select focused fixture")
+            .selected
+            .is_empty()
+    );
+    assert!(choose(&mut surface, "Edit value").editor.is_some());
+    for character in ['4', '5'] {
+        for _ in 0..95 {
+            if surface.character() == character {
+                break;
+            }
+            pad(&mut surface, 5);
+        }
+        let before = worker.view.lock().unwrap().completed;
+        pad(&mut surface, 6);
+        wait(|| worker.view.lock().unwrap().completed > before);
+    }
+    let before =
+        worker.view.lock().unwrap().inventory.as_ref().unwrap()["snapshot"]["revision"].clone();
+    let reviewed = choose(&mut surface, "Review entered value");
+    assert!(reviewed.review.is_some(), "{}", reviewed.notice);
+    assert_eq!(
+        reviewed.inventory.as_ref().unwrap()["snapshot"]["revision"],
+        before
+    );
+    let refused = choose(&mut surface, "Confirm reviewed change");
+    assert!(
+        refused
+            .command_error
+            .as_ref()
+            .is_some_and(|e| e.contains("review all")),
+        "{}",
+        refused.notice
+    );
+    assert_eq!(
+        refused.inventory.as_ref().unwrap()["snapshot"]["revision"],
+        before
+    );
+    // Renderer coverage uses the actual production viewport calculation, never the menu.
+    let mut scroll = 0;
+    loop {
+        let view = worker.view.lock().unwrap().current();
+        assert!(shr_lightdesk::frontend::scene(&view, "", scroll).in_bounds());
+        let (context, start, through) =
+            shr_lightdesk::frontend::visible_review_range(&view, scroll).unwrap();
+        send(
+            &worker,
+            Semantic::Reviewed {
+                context,
+                start,
+                through,
+            },
+        );
+        if through >= view.review_text.len() {
+            break;
+        }
+        scroll += 20;
+    }
+    let applied = choose(&mut surface, "Confirm reviewed change");
+    assert!(applied.command_error.is_none(), "{}", applied.notice);
+    assert_eq!(
+        applied.inventory.as_ref().unwrap()["snapshot"]["fixtures"][0]["attributes"][0]["programmer"],
+        450
+    );
+    assert!(applied.review.is_none());
+    drop(worker);
+}

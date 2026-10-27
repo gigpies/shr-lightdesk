@@ -37,3 +37,8 @@ A documentation reconciliation does not rerun tests or qualify hardware.
 The shared [GP-UI-COMPARE](../../gigpies/docs/archive/records/2026-10-11-gp-ui-compare.md) owns the requested Ratatui/current-renderer comparison.
 
 The shared [GP-PANEL card](../../gigpies/docs/development/MODULE_IMPLEMENTATION_PLAN.md#gp-panel--shared-physical-instrument-panel) owns the physical Ratatui panel, shared assets and specimen-first migration gates.
+
+Controller-only semantic menus and value entry contribute to the existing
+[GP-H2 card](../../gigpies/docs/development/MODULE_IMPLEMENTATION_PLAN.md#gp-h2--physical-dual-console-operation).
+The owning [controller contract](CONTROLLER.md#production-semantic-menu) separates
+the software adapter from physical input acquisition and device qualification.
