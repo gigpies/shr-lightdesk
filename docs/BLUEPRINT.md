@@ -8,8 +8,9 @@ Neither a lighting automaton nor an audio automixer is the entire Brain.
 
 One Brain runs two independent native applications, normally one Full-HD
 1920×1080 monitor and one MIDI keyboard controller per desk. SHR Desk is the
-audio surface; SHR Lightdesk is the lighting surface. Ordinary keyboard input
-must provide every operation even with controllers disconnected. The Stagebox
+audio surface; SHR Lightdesk is the lighting surface. Assigned MIDI controllers must support the live workflow without a computer
+keyboard or mouse. Ordinary keyboard input remains an optional complete fallback
+when controllers are disconnected. The Stagebox
 keeps audio, local protection, monitors and recording independent of these apps.
 
 ```mermaid

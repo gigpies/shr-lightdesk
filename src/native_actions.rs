@@ -13,6 +13,9 @@ use serde_json::json;
 #[derive(Clone, Debug)]
 pub enum Semantic {
     Action(Action),
+    ConsoleEdit(ConsoleEditor),
+    Checkpoint,
+    ToggleFocused,
     Grant,
     Scenes,
     SceneEdit,
@@ -34,8 +37,17 @@ pub enum Semantic {
         through: usize,
     },
 }
+#[derive(Clone, Copy, Debug)]
+pub enum ConsoleEditor {
+    Master,
+    ReleaseMask,
+    SceneGrant,
+    SceneImport,
+    SceneExport,
+}
 #[derive(Clone, Debug)]
 pub enum Editor {
+    Console { kind: ConsoleEditor, text: String },
     Existing(Draft),
     Go(String),
     AutoGrant(String),
@@ -45,7 +57,8 @@ pub enum Editor {
 impl Editor {
     pub fn text(&self) -> String {
         match self {
-            Self::Existing(Draft::Attribute { text, .. } | Draft::Record { text, .. })
+            Self::Console { text, .. }
+            | Self::Existing(Draft::Attribute { text, .. } | Draft::Record { text, .. })
             | Self::Go(text)
             | Self::AutoGrant(text)
             | Self::SceneEdit(text)
@@ -141,6 +154,36 @@ impl Workflow {
     }
     pub fn dispatch(&mut self, op: &mut Operator, event: Semantic) -> Result<String, String> {
         match event {
+            Semantic::ConsoleEdit(kind) => self.begin(
+                op,
+                Editor::Console {
+                    kind,
+                    text: String::new(),
+                },
+            ),
+            Semantic::ToggleFocused => {
+                self.discard(op)?;
+                let id = op
+                    .client
+                    .authority
+                    .snapshot()
+                    .and_then(|s| s["patch"]["fixtures"].as_array())
+                    .and_then(|fs| fs.get(self.cursor))
+                    .and_then(|f| f["id"].as_str())
+                    .ok_or("fixture unavailable")?
+                    .to_owned();
+                if !op.selected.remove(&id) {
+                    if op.selected.len() >= 32 {
+                        return Err("selection capacity32".into());
+                    }
+                    op.selected.insert(id);
+                }
+                Ok("Fixture selection updated; no provider change".into())
+            }
+            Semantic::Checkpoint => {
+                self.discard(op)?;
+                op.review(json!({"action":"checkpoint"}))
+            }
             Semantic::Reviewed {
                 context,
                 start,
@@ -337,6 +380,7 @@ impl Workflow {
                         Some(Editor::Existing(
                             Draft::Attribute { text, .. } | Draft::Record { text, .. },
                         ))
+                        | Some(Editor::Console { text, .. })
                         | Some(Editor::Go(text))
                         | Some(Editor::AutoGrant(text))
                         | Some(Editor::SceneEdit(text))
@@ -354,6 +398,7 @@ impl Workflow {
                         Some(Editor::Existing(
                             Draft::Attribute { text, .. } | Draft::Record { text, .. },
                         ))
+                        | Some(Editor::Console { text, .. })
                         | Some(Editor::Go(text))
                         | Some(Editor::AutoGrant(text))
                         | Some(Editor::SceneEdit(text))
@@ -394,6 +439,57 @@ impl Workflow {
                         let retained_scene =
                             matches!(editor, Editor::SceneEdit(_)).then(|| editor.clone());
                         let command = match editor {
+                            Editor::Console { kind, text } => {
+                                let fields: Vec<_> = text.split_whitespace().collect();
+                                match kind {
+                                    ConsoleEditor::SceneImport | ConsoleEditor::SceneExport => {
+                                        if fields.len() != 1 {
+                                            return Err("enter one scene map path".into());
+                                        }
+                                        let verb = if matches!(kind, ConsoleEditor::SceneImport) {
+                                            "import"
+                                        } else {
+                                            "export"
+                                        };
+                                        let result =
+                                            op.line(&format!("scene {verb} {}", fields[0]))?.1;
+                                        self.editor = None;
+                                        return Ok(result);
+                                    }
+                                    ConsoleEditor::Master => {
+                                        let n = typed_value(&text)?;
+                                        adapter::level(&json!(n))?;
+                                        json!({"action":"master","level":n})
+                                    }
+                                    ConsoleEditor::ReleaseMask => {
+                                        if fields.is_empty()
+                                            || fields.len() > 7
+                                            || fields.iter().any(|a| {
+                                                !Attribute::ALL
+                                                    .iter()
+                                                    .any(|v| attribute_name(*v) == *a)
+                                            })
+                                        {
+                                            return Err("choose one or more attribute names".into());
+                                        }
+                                        let result =
+                                            op.line(&format!("preview {}", fields.join(" ")))?.1;
+                                        self.editor = None;
+                                        return Ok(result);
+                                    }
+                                    ConsoleEditor::SceneGrant => {
+                                        if fields.len() != 3 {
+                                            return Err("enter intensity percent, color percent, TTL milliseconds".into());
+                                        }
+                                        let command = json!({"action":"scene_grant","fixtures":op.selected,"intensity_cap":typed_value(fields[0])?,"color_cap":typed_value(fields[1])?,"ttl_ms":fields[2].parse::<u64>().map_err(|_|"TTL integer")?});
+                                        crate::scenes::validate_command(
+                                            op.client.authority.snapshot().ok_or("no snapshot")?,
+                                            &command,
+                                        )?;
+                                        command
+                                    }
+                                }
+                            }
                             Editor::Existing(Draft::Attribute { attribute, text }) => {
                                 let fields: Vec<_> = text.split_whitespace().collect();
                                 let attrs: Vec<(&str, i32)> = match attribute {

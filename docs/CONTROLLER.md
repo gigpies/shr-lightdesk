@@ -1,5 +1,28 @@
 # Lighting controller and keyboard plan
 
+## Production semantic menu
+
+`src/controller_surface.rs` owns the labelled menu, bounded character wheel and
+complete-message pad binding. The eight logical pads are Previous, Next, Choose,
+Cancel, Character−, Character+, Add and Delete. Previous/Next also opens the menu;
+no encoder click, extra pad bank or computer key is required for this path.
+Physical profiles must supply the exact endpoint, MIDI channel and eight distinct
+note numbers; there is no guessed default. Note-off and velocity-zero note-on
+complete the gesture. Repeats cannot choose twice; lost input requires release.
+No MIDI port, preset or LED output is opened by this implementation.
+
+Menu actions call the existing provider-backed semantic workflow, not simulated
+computer keys. Numeric and text editors use existing parsing, capacity and
+review gates. The actual review must be displayed separately; the menu overlay
+cannot acknowledge hidden review content. Controller input retains its acquisition
+generation, and stale role/context/input cannot be replayed against a new target.
+
+The terminal footer exposes the same logical controls for software operation.
+The physical input worker/profile installation and target-device validation remain
+[GP-H2](https://github.com/gigpies/gigpies/blob/main/docs/development/MODULE_IMPLEMENTATION_PLAN.md#gp-h2--physical-dual-console-operation).
+The older simulator mappings below are separate from this production menu path.
+
+
 2026-10-04. Second physical controller identity/preset/messages are **unverified**.
 No MIDI device was opened. All byte injection below uses an explicitly synthetic
 profile. Sixteen rotaries, eight physical pads and octave-transposed keys describe
@@ -77,8 +100,9 @@ Positions are exactly two rows of eight. The first slice keeps assignments stabl
 on all seven pages; action menus/release panels suppress rotary edits. Unsupported
 controls show `--` and emit no command. Mixed fixture selections permit only
 capabilities supported by **every** selected fixture; a rejected edit changes none.
-Mixed values currently require explicit keyboard `set` before absolute/relative
-rotary adjustment. Future relative group-offset editing needs bounds per fixture.
+The historical simulator requires explicit `set` for mixed values before
+absolute/relative rotary adjustment. The production menu offers detached value
+entry for the selected fixtures. Future relative group-offset editing needs bounds per fixture.
 
 | Top row | K01 | K02 | K03 | K04 | K05 | K06 | K07 | K08 |
 |---|---|---|---|---|---|---|---|---|
@@ -161,7 +185,7 @@ release before a new press. No buffered relative deltas replay after reconnect.
 Engine reconnect obtains a fresh snapshot before edits. Unknown SysEx, MIDI clock,
 aftertouch and unrelated channels/identities are ignored, with no forwarding.
 
-## Complete keyboard path and acceptance
+## Optional keyboard fallback and physical acceptance
 
 The current loop's `help` is the complete implemented command map; see the
 [workflow](SCREENS.md). It uses standard cooked input, no terminal raw mode or
