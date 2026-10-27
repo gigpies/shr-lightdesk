@@ -1,6 +1,6 @@
 # SHR Lightdesk
 
-**The lighting desk for GigPies.** Select fixtures, build looks, record cues and
+**A terminal application (TUI): the lighting desk for GigPies.** Select fixtures, build looks, record cues and
 review transitions. Manual operation comes first; ASSIST and AUTO are optional.
 
 [**Using the desk**](docs/USING.md) · [**GigPies guide**](https://github.com/gigpies/gigpies/blob/main/docs/README.md) · [Engineering](docs/ENGINEERING.md)
@@ -31,3 +31,5 @@ The simulator keeps its show only until exit and controls no lights.
 For a configured GigPies system, start with the [desk controls](docs/USING.md).
 
 [Software status](docs/STATUS.md) · [MIT license](LICENSE) · [Font notices](THIRD_PARTY.md)
+
+[Contribute](https://github.com/gigpies/.github/blob/main/CONTRIBUTING.md) · [Report a bug](https://github.com/gigpies/shr-lightdesk/issues/new/choose)
