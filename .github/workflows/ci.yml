@@ -20,11 +20,12 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
         cargo_args: ['', '--features native']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +37,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y pkg-config libx11-dev libxkbcommon-dev libvulkan1 mesa-vulkan-drivers
       - name: Install exact Rust toolchain
         run: |
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
           rustc +1.97.1 -vV
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
@@ -57,8 +58,9 @@ jobs:
         run: |
           unset DISPLAY WAYLAND_DISPLAY VK_DRIVER_FILES VK_ADD_DRIVER_FILES
           if [ ! -e /usr/share/vulkan/icd.d/lvp_icd.json ]; then
-            test -f /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-            sudo ln -s lvp_icd.x86_64.json /usr/share/vulkan/icd.d/lvp_icd.json
+            icd="/usr/share/vulkan/icd.d/lvp_icd.$(uname -m).json"
+            test -f "$icd"
+            sudo ln -s "$icd" /usr/share/vulkan/icd.d/lvp_icd.json
           fi
           export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/lightdesk-runtime"
@@ -68,6 +70,10 @@ jobs:
         run: |
           python3 scripts/check_publication.py
           python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Clippy and release build
+        run: |
+          cargo +1.97.1 clippy --locked --all-targets ${{ matrix.cargo_args }} -- -D warnings
+          cargo +1.97.1 build --locked --release ${{ matrix.cargo_args }}
   automation:
     uses: gigpies/.github/.github/workflows/quality.yml@80d76c2b710d90e55f4f95ecea192c514f471fe6
   gate:
