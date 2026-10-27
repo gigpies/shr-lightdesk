@@ -188,7 +188,7 @@ successful reconnect. Lux owns and tests this path; Lightdesk displays it.
 
 ## Coordinated implementation baseline — 2026-10-04
 
-The [GP-2026-10-04.1 contract decisions](../../gigpies/docs/MODULE_CONTRACTS.md)
+The [GP-2026-10-04.1 contract decisions](../../gigpies/docs/reference/MODULE_CONTRACTS.md)
 now fix the first implementation subset, examples, bounds and unresolved gates.
 They supersede undecided integration choices in this earlier proposal for that
 subset; the simulator remains in-process scaffolding with the limits above.

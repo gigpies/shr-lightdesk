@@ -24,8 +24,8 @@ Use an explicit endpoint/show/epoch with `lux-control`, or the existing role-bou
 native/offscreen frontend. The client never starts Lux or opens lighting hardware.
 Native/offscreen writes require the existing live GP09 `lighting-desk` role.
 F7 and automatic observation remain available without that role. Supply the
-explicit `--role-provider`, `--role-dir` and `--role-request` arguments described
-in the README; injected descriptors do not verify physical controller identity.
+explicit `--role-provider`, `--role-dir` and `--role-request` arguments in the
+[client reference](reference/CLIENT.md); injected descriptors do not verify physical controller identity.
 
 ```text
 grant

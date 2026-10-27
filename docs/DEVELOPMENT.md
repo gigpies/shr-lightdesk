@@ -73,7 +73,7 @@ open paths and locks. Never blanket-delete another project's target or user data
 
 ## Task0009 native/offscreen checks
 
-Follow the central [one-build-slot-per-host procedure](https://github.com/PaolaShultz/gigpies/blob/main/docs/PARALLEL_WORK_PLAN.md#one-build-slot-per-host).
+Follow the central [one-build-slot-per-host procedure](https://github.com/gigpies/gigpies/blob/main/docs/development/PARALLEL_WORK_PLAN.md#one-build-slot-per-host).
 A parent process holds the shared nonblocking lock throughout each Cargo command;
 if occupied, continue independent source work and retry later. With the host lock
 path set by the coordinator, standalone commands are:

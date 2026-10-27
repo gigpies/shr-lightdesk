@@ -5,7 +5,7 @@ inspected and accompanied by a detailed description. Open [the offline gallery](
 to browse pictures and all observations together, or use the per-screen Markdown links below.
 The gallery is static HTML with local images; it needs no server, build, scripts or external fonts.
 
-[Audio companion library](https://github.com/PaolaShultz/shr-desk/tree/main/docs/console-screen-reference) · [existing console study](../CONSOLE_STUDY.md) ·
+[Audio companion library](https://github.com/gigpies/shr-desk/tree/main/docs/console-screen-reference) · [existing console study](../CONSOLE_STUDY.md) ·
 [owning screen plan](../SCREENS.md) · [source register](SOURCES.md) · [manifest](manifest.json)
 
 ## How to use this library

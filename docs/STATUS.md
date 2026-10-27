@@ -162,7 +162,7 @@ publication or deployment was started. The new project has no remote.
 
 Full ownership, acceptance conditions and useful later work are in the
 [blueprint](BLUEPRINT.md), [capability matrix](CAPABILITIES.md) and
-[GigPies integration backlog](../../gigpies/docs/BRAIN_CONSOLE_PLAN.md).
+[GigPies integration backlog](../../gigpies/docs/archive/studies/BRAIN_CONSOLE_PLAN.md).
 
 ## GigPies integration planning — 2026-10-04
 
