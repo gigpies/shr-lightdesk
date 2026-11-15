@@ -239,10 +239,15 @@ impl Operator {
                     | "lx04-durable-v1"
                     | "lx05-v1"
                     | "lx05-v2"
+                    | "lx05-v3"
                     | "lx05-music-v1"
+                    | "lx05-music-v3"
                     | "lx05-music-v2"
+                    | "lx05-music-v4"
                     | "lx06-scenes-v1"
+                    | "lx06-scenes-v3"
                     | "lx06-scenes-v2"
+                    | "lx06-scenes-v4"
             )
         ) || snapshot.get("release").is_none()
         {
@@ -717,10 +722,15 @@ pub fn validate_analysis_command(snapshot: &Value, command: &Value) -> Result<()
         Some(
             "lx05-v1"
                 | "lx05-v2"
+                | "lx05-v3"
                 | "lx05-music-v1"
+                | "lx05-music-v3"
                 | "lx05-music-v2"
+                | "lx05-music-v4"
                 | "lx06-scenes-v1"
+                | "lx06-scenes-v3"
                 | "lx06-scenes-v2"
+                | "lx06-scenes-v4"
         )
     ) || snapshot["applied_auto"]
         != if crate::scenes::available(snapshot) {

@@ -9,7 +9,7 @@ type Result<T> = std::result::Result<T, String>;
 pub fn available(i: &Value) -> bool {
     matches!(
         i["wire_schema"].as_str(),
-        Some("lx06-scenes-v1" | "lx06-scenes-v2")
+        Some("lx06-scenes-v1" | "lx06-scenes-v3" | "lx06-scenes-v2" | "lx06-scenes-v4")
     )
 }
 fn bounded(v: &Value, min: i32, max: i32) -> Result<i32> {

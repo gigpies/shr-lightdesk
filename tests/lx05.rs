@@ -458,6 +458,7 @@ fn music_camelot_matches_all_known_major_and_minor_identities() {
 fn actual_lux_music_producer_corpora_decode_both_bindings_and_stale_loss() {
     for raw in [
         include_str!("fixtures/musical/configured.json"),
+        include_str!("fixtures/musical/seven-feeds.json"),
         include_str!("fixtures/musical/legacy-binding.json"),
         include_str!("fixtures/musical/configured-estimates.json"),
         include_str!("fixtures/musical/legacy-estimates.json"),
@@ -497,5 +498,60 @@ fn music_geometry_without_key_does_not_claim_functional_harmony() {
             c.ingest(&serde_json::to_vec(&page(&bad, 1)).unwrap(), 0)
                 .is_err()
         );
+    }
+}
+
+#[test]
+fn rich_music_cues_are_versioned_readable_and_reject_bad_provenance() {
+    let mut i = music_inventory();
+    i["wire_schema"] = json!("lx05-music-v3");
+    let a = &mut i["analysis"];
+    a["musical"]["expression"] = json!({"source_frame": a["source_window_range"]["end_frame_exclusive"], "activity":"pause", "quiet_ms":400, "resumed":false, "energy_direction":"steady", "register_direction":"down"});
+    a["musical"]["prediction"] = json!({"root":7,"quality":"major","confidence":900});
+    a["musical"]["section"]["label"] = json!("bridge_candidate");
+    let text = decode(&i).presentation().unwrap();
+    assert!(text.contains("tentative bridge"));
+    assert!(text.contains("Activity pause"));
+    assert!(text.contains("Possible next chord G major"));
+    for key in ["expression", "prediction"] {
+        let mut bad = i.clone();
+        bad["analysis"]["musical"][key]["source_frame"] = json!("0");
+        let mut client = decode(&i);
+        assert!(
+            client
+                .ingest(&serde_json::to_vec(&page(&bad, 2)).unwrap(), 1)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn seven_feed_contract_refuses_count_role_and_mapping_drift() {
+    let corpus: Value =
+        serde_json::from_str(include_str!("fixtures/musical/seven-feeds.json")).unwrap();
+    let good = &corpus["active"];
+    for mutation in 0..5 {
+        let mut bad = good.clone();
+        match mutation {
+            0 => {
+                bad["analysis_binding"]["inputs"][6] = bad["analysis_binding"]["inputs"][0].clone()
+            }
+            1 => bad["analysis"]["source_identity"]["sources"][6] = json!("other"),
+            2 => bad["analysis"]["source_identity"]["version"] = json!(2),
+            3 => bad["analysis"]["rms_millionths"] = json!([0, 0, 0, 0]),
+            _ => bad["analysis"]["musical"]
+                .as_object_mut()
+                .unwrap()
+                .remove("expression")
+                .map(|_| ())
+                .unwrap(),
+        }
+        let mut client = decode(good);
+        assert!(
+            client
+                .ingest(&serde_json::to_vec(&page(&bad, 2)).unwrap(), 1)
+                .is_err()
+        );
+        assert_eq!(client.snapshot(), Some(good));
     }
 }

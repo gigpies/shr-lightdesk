@@ -319,13 +319,43 @@ fn bounded(v: &Value, max: i32) -> Result<()> {
     Ok(())
 }
 fn analysis_binding(v: &Value) -> Result<()> {
-    schema(v, &["version", "inputs"])?;
-    if integer(&v["version"])? != 2 {
+    let extended = v["version"] == 3;
+    schema(
+        v,
+        if extended {
+            &["version", "inputs", "sources"]
+        } else {
+            &["version", "inputs"]
+        },
+    )?;
+    if !matches!(integer(&v["version"])?, 2 | 3) {
         return Err("analysis binding version".into());
     }
-    let inputs = array(&v["inputs"], 4)?;
-    if inputs.len() != 4 {
-        return Err("four analysis inputs required".into());
+    let inputs = array(&v["inputs"], 8)?;
+    if !(4..=8).contains(&inputs.len()) || (!extended && inputs.len() != 4) {
+        return Err("analysis source count outside declared version/budget".into());
+    }
+    if extended {
+        let sources = array(&v["sources"], 8)?;
+        if sources.len() != inputs.len()
+            || sources[..4]
+                != serde_json::json!(["kick", "bass", "guitar-1", "guitar-2"])
+                    .as_array()
+                    .unwrap()[..]
+        {
+            return Err("analysis roles".into());
+        }
+        let mut names = BTreeSet::new();
+        for source in sources {
+            let name = text(source)?;
+            if name.is_empty()
+                || name.len() > 32
+                || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                || !names.insert(name)
+            {
+                return Err("source name".into());
+            }
+        }
     }
     let mut seen = BTreeSet::new();
     for input in inputs {
@@ -364,7 +394,9 @@ fn analysis_descriptor(v: &Value, binding: Option<&Value>) -> Result<()> {
         ("contract", "C-ANALYSIS"),
         (
             "subscription",
-            if binding.is_some() {
+            if binding.is_some_and(|b| b["version"] == 3) {
+                "lux.aux.v3"
+            } else if binding.is_some() {
                 "lux.aux.v2"
             } else {
                 "lux.aux.v1"
@@ -375,7 +407,11 @@ fn analysis_descriptor(v: &Value, binding: Option<&Value>) -> Result<()> {
     ] {
         exact(&v[k], value)?;
     }
-    if integer(&v["version"])? != if binding.is_some() { 2 } else { 1 }
+    if integer(&v["version"])?
+        != binding
+            .map(|b| integer(&b["version"]))
+            .transpose()?
+            .unwrap_or(1)
         || integer(&v["sample_rate"])? != 48000
         || integer(&v["stream"])? != 3
     {
@@ -394,7 +430,12 @@ fn analysis_descriptor(v: &Value, binding: Option<&Value>) -> Result<()> {
     {
         return Err("configured descriptor revision zero".into());
     }
-    if v["sources"] != serde_json::json!(["kick", "bass", "guitar-1", "guitar-2"]) {
+    if v["sources"]
+        != binding
+            .filter(|b| b["version"] == 3)
+            .map(|b| b["sources"].clone())
+            .unwrap_or_else(|| serde_json::json!(["kick", "bass", "guitar-1", "guitar-2"]))
+    {
         return Err("analysis ordered sources".into());
     }
     if v["inputs"]
@@ -524,8 +565,8 @@ fn analysis_status(
         analysis_window(&a["source_window_range"], descriptor)?;
     }
     if !a["rms_millionths"].is_null() {
-        let rms = array(&a["rms_millionths"], 4)?;
-        if rms.len() != 4 {
+        let rms = array(&a["rms_millionths"], 8)?;
+        if rms.len() != descriptor["inputs"].as_array().map_or(4, Vec::len) {
             return Err("analysis RMS count".into());
         }
         for n in rms {
@@ -697,13 +738,36 @@ fn inventory(v: &Value, expected_show: &str, epoch: u64, revision: u64) -> Resul
         "snapshot",
         "snapshot_budget",
     ];
+    if matches!(
+        v["wire_schema"].as_str(),
+        Some("lx05-music-v3" | "lx05-music-v4" | "lx06-scenes-v3" | "lx06-scenes-v4")
+    ) && v["analysis"]["musical"].get("expression").is_none()
+    {
+        return Err("rich music fields required".into());
+    }
     let musical = matches!(
         v["wire_schema"].as_str(),
-        Some("lx05-music-v1" | "lx05-music-v2" | "lx06-scenes-v1" | "lx06-scenes-v2")
+        Some(
+            "lx05-music-v1"
+                | "lx05-music-v3"
+                | "lx05-music-v2"
+                | "lx05-music-v4"
+                | "lx06-scenes-v1"
+                | "lx06-scenes-v3"
+                | "lx06-scenes-v2"
+                | "lx06-scenes-v4"
+        )
     );
     let configured = matches!(
         v["wire_schema"].as_str(),
-        Some("lx05-v2" | "lx05-music-v2" | "lx06-scenes-v2")
+        Some(
+            "lx05-v2"
+                | "lx05-v3"
+                | "lx05-music-v2"
+                | "lx05-music-v4"
+                | "lx06-scenes-v2"
+                | "lx06-scenes-v4"
+        )
     );
     let analysis = musical || configured || v.get("wire_schema").is_some_and(|s| s == "lx05-v1");
     let timed = match v.get("wire_schema") {
@@ -714,10 +778,15 @@ fn inventory(v: &Value, expected_show: &str, epoch: u64, revision: u64) -> Resul
                 text(schema)?,
                 "lx05-v1"
                     | "lx05-v2"
+                    | "lx05-v3"
                     | "lx05-music-v1"
+                    | "lx05-music-v3"
                     | "lx05-music-v2"
+                    | "lx05-music-v4"
                     | "lx06-scenes-v1"
+                    | "lx06-scenes-v3"
                     | "lx06-scenes-v2"
+                    | "lx06-scenes-v4"
             ) =>
         {
             v.get("release").is_some()
@@ -1721,24 +1790,51 @@ pub(crate) fn advertised_value(
 
 /// Command results carry owner analysis state independently of a complete inventory.
 pub(crate) fn validate_analysis_result(a: &Value, inventory: &Value) -> Result<()> {
+    if matches!(
+        inventory["wire_schema"].as_str(),
+        Some("lx05-music-v3" | "lx05-music-v4" | "lx06-scenes-v3" | "lx06-scenes-v4")
+    ) && a["musical"].get("expression").is_none()
+    {
+        return Err("rich music fields required".into());
+    }
     let p = patch(&inventory["patch"], &inventory["capability_metadata"], 32)?;
     analysis_status(
         a,
         &p,
         matches!(
             inventory["wire_schema"].as_str(),
-            Some("lx05-v2" | "lx05-music-v2" | "lx06-scenes-v2")
+            Some(
+                "lx05-v2"
+                    | "lx05-v3"
+                    | "lx05-music-v2"
+                    | "lx05-music-v4"
+                    | "lx06-scenes-v2"
+                    | "lx06-scenes-v4"
+            )
         )
         .then_some(&inventory["analysis_binding"]),
         matches!(
             inventory["wire_schema"].as_str(),
-            Some("lx05-music-v1" | "lx05-music-v2" | "lx06-scenes-v1" | "lx06-scenes-v2")
+            Some(
+                "lx05-music-v1"
+                    | "lx05-music-v3"
+                    | "lx05-music-v2"
+                    | "lx05-music-v4"
+                    | "lx06-scenes-v1"
+                    | "lx06-scenes-v3"
+                    | "lx06-scenes-v2"
+                    | "lx06-scenes-v4"
+            )
         ),
     )?;
     Ok(())
 }
 pub(crate) fn validate_scene_source(p: &Value, i: &Value) -> Result<()> {
-    let binding = (i["wire_schema"] == "lx06-scenes-v2").then_some(&i["analysis_binding"]);
+    let binding = matches!(
+        i["wire_schema"].as_str(),
+        Some("lx06-scenes-v2" | "lx06-scenes-v4")
+    )
+    .then_some(&i["analysis_binding"]);
     analysis_descriptor(&p["source_identity"], binding)?;
     analysis_window(&p["source_window_range"], &p["source_identity"])
 }

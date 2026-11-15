@@ -20,18 +20,20 @@ fn mode(v: &Value) -> Result<&str> {
 }
 pub(crate) fn validate(a: &Value) -> Result<()> {
     let m = &a["musical"];
-    schema(
-        m,
-        &[
-            "state",
-            "source_frame",
-            "chroma",
-            "chord",
-            "key",
-            "movement",
-            "section",
-        ],
-    )?;
+    let rich = m.get("expression").is_some();
+    let mut keys = vec![
+        "state",
+        "source_frame",
+        "chroma",
+        "chord",
+        "key",
+        "movement",
+        "section",
+    ];
+    if rich {
+        keys.extend(["expression", "prediction"]);
+    }
+    schema(m, &keys)?;
     let state = text(&m["state"])?;
     if !matches!(state, "unknown" | "tracking" | "stale") {
         return Err("music state".into());
@@ -49,6 +51,7 @@ pub(crate) fn validate(a: &Value) -> Result<()> {
     if state != "tracking" {
         if !m["source_frame"].is_null()
             || chroma.iter().any(|n| n != 0)
+            || (rich && (!m["expression"].is_null() || !m["prediction"].is_null()))
             || ["chord", "key", "movement", "section"]
                 .iter()
                 .any(|k| !m[*k].is_null())
@@ -62,6 +65,51 @@ pub(crate) fn validate(a: &Value) -> Result<()> {
     let first = counter(&a["source_identity"]["first_frame"])?;
     if a["state"] != "ready" || frame < first || frame > end || end - frame >= 6144 {
         return Err("music freshness/source mismatch".into());
+    }
+    if rich {
+        let e = &m["expression"];
+        schema(
+            e,
+            &[
+                "source_frame",
+                "activity",
+                "quiet_ms",
+                "resumed",
+                "energy_direction",
+                "register_direction",
+            ],
+        )?;
+        let expression_frame = counter(&e["source_frame"])?;
+        if expression_frame != end {
+            return Err("expression source mismatch".into());
+        }
+        let quiet = e["quiet_ms"]
+            .as_u64()
+            .filter(|n| *n <= u32::MAX as u64)
+            .ok_or("quiet duration")?;
+        if !quiet.is_multiple_of(10) || !e["resumed"].is_boolean() {
+            return Err("expression shape".into());
+        }
+        if !matches!(
+            text(&e["activity"])?,
+            "settling" | "playing" | "brief_gap" | "pause" | "silence"
+        ) {
+            return Err("activity".into());
+        }
+        for key in ["energy_direction", "register_direction"] {
+            if !matches!(text(&e[key])?, "up" | "down" | "steady" | "unknown") {
+                return Err("expression direction".into());
+            }
+        }
+        let prediction = &m["prediction"];
+        if !prediction.is_null() {
+            schema(prediction, &["root", "quality", "confidence"])?;
+            pitch(&prediction["root"])?;
+            mode(&prediction["quality"])?;
+            if level(&prediction["confidence"])? < 750 || m["chord"].is_null() {
+                return Err("prediction support".into());
+            }
+        }
     }
     let chord = &m["chord"];
     if !chord.is_null() {
@@ -142,7 +190,7 @@ pub(crate) fn validate(a: &Value) -> Result<()> {
         }
         if !matches!(
             text(&section["label"])?,
-            "unknown" | "verse_candidate" | "chorus_candidate"
+            "unknown" | "verse_candidate" | "chorus_candidate" | "bridge_candidate"
         ) {
             return Err("music section label".into());
         }
@@ -224,6 +272,7 @@ pub fn presentation(a: &Value) -> Vec<String> {
         let label = match section["label"].as_str() {
             Some("verse_candidate") => "tentative verse",
             Some("chorus_candidate") => "tentative chorus",
+            Some("bridge_candidate") => "tentative bridge",
             _ => "unlabeled",
         };
         format!(
@@ -235,5 +284,28 @@ pub fn presentation(a: &Value) -> Vec<String> {
             confidence(&section["recurrence"])
         )
     });
+    if let Some(e) = m.get("expression").filter(|e| !e.is_null()) {
+        lines.push(format!(
+            "Activity {} / quiet {} ms / energy {} / register {}{}",
+            e["activity"].as_str().unwrap_or("unknown"),
+            e["quiet_ms"],
+            e["energy_direction"].as_str().unwrap_or("unknown"),
+            e["register_direction"].as_str().unwrap_or("unknown"),
+            if e["resumed"] == true {
+                " / resumed"
+            } else {
+                ""
+            }
+        ));
+        if !m["prediction"].is_null() {
+            let p = &m["prediction"];
+            lines.push(format!(
+                "Possible next chord {} {} / observed transition support {} / timing unknown",
+                note(&p["root"]),
+                p["quality"].as_str().unwrap_or("unknown"),
+                confidence(&p["confidence"])
+            ));
+        }
+    }
     lines
 }

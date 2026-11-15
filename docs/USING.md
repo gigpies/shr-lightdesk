@@ -91,3 +91,19 @@ Stale values are last-known values. Reconnect, read the current look and request
 control again before applying a new review. Drafts may remain visible after
 focus or connection loss, but old confirmations cannot be reused.
 Closing the desk does not force blackout or clear Lux's look.
+
+### Richer music observations
+
+With the updated Lux music mode, the analysis view also shows energy rising/falling,
+spectral register rising/falling, brief gaps, pauses, silence and resumption.
+Circle-of-fifths motion describes chord relationships separately. Register changes
+can come from voicing or instrumentation; they do not prove a melody moved up/down.
+Repeated chord changes can suggest a possible next chord, with observed support
+and no claimed onset time. Verse, chorus and bridge labels remain tentative;
+a bridge candidate may instead be a solo, breakdown or outro.
+
+The configured local subscription supports the seven-feed arrangement of kick,
+bass, two guitars, lead vocal, synth and backing vocals. Use matching explicit
+provider/Lux mappings and soundcheck every selected source. Four-feed sessions
+remain supported. No analysis selection arms lighting or changes manual/Hold
+priority, and stale or disconnected audio cannot be shown as a musical pause.
