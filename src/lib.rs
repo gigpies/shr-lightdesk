@@ -28,4 +28,6 @@ pub mod scenes;
 
 pub mod terminal;
 
+#[cfg(target_os = "linux")]
+pub mod controller_input;
 pub mod controller_surface;

@@ -202,4 +202,4 @@ All combined-load and display/GPU acceptance is a separately scoped hardware gat
 
 A rendered stage, an accepted mock request and a green pad are three different
 observations; none establishes actual light. See [contract](CONTROL_CONTRACT.md)
-for source attribution and output evidence, and [status](STATUS.md) for exact gates.
+for source attribution and output evidence, and [evidence archive](archive/evidence-to-2026-11-24.md) for exact gates.

@@ -212,7 +212,11 @@ pub fn run(
     show: String,
     epoch: u64,
     role: Option<crate::role_client::Config>,
+    controller: Option<crate::controller_input::Profile>,
 ) -> Result<(), String> {
+    let mut acquisition = controller
+        .map(crate::controller_input::Acquisition::start)
+        .transpose()?;
     let mut console = Console::open().map_err(|e| e.to_string())?;
     let mut app = App {
         controller: crate::controller_surface::Surface::new(epoch),
@@ -229,6 +233,9 @@ pub fn run(
     app.keyboard.release_enter();
     let result = (|| -> Result<(), String> {
         loop {
+            if let Some(a) = &mut acquisition {
+                a.poll(&mut app.controller, &app.worker);
+            }
             let mut view = app.worker.view.lock().unwrap().current();
             if !app.notice.is_empty() {
                 view.notice = app.notice.clone();

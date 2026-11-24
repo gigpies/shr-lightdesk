@@ -22,7 +22,7 @@ Implementation details, integration, measured evidence and development tasks.
 
 ## Evidence and maintenance
 
-- [Dated implementation evidence](STATUS.md)
+- [Status](STATUS.md) and [dated evidence](archive/evidence-to-2026-11-24.md)
 - [SHR Lightdesk: plan and implementation](GIGPIES_IMPLEMENTATION.md)
 - [Source publication](PUBLICATION.md)
 - [Continuous integration](CI.md)

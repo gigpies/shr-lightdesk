@@ -4,7 +4,7 @@
 The original simulator backend writes state-driven SVG/PPM drafts with ordinary
 line input. Task0009 adds an optional native winit/wgpu frontend and explicit
 real-provider worker offscreen mode over the same font/primitives. Its semantic
-workflow, exact review paging and validation state are in [Status](STATUS.md) and
+workflow, exact review paging and validation state are in the [evidence archive](archive/evidence-to-2026-11-24.md) and
 [Development](DEVELOPMENT.md). No actual operator window/HDMI session or physical
 stage preview was opened during software acceptance. The dated screen drafts
 below remain design evidence. [Generate the gallery](DEVELOPMENT.md).

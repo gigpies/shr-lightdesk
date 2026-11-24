@@ -7,7 +7,7 @@ authority, timing, analysis and output. The surface must not implement another e
 
 The real private Lux client, native software frontend, reviewed commands, timed
 release/recovery presentation and named-analysis provenance have software evidence
-in [STATUS](STATUS.md). [Capabilities](CAPABILITIES.md) describes supported behavior.
+in the [evidence archive](archive/evidence-to-2026-11-24.md). [Capabilities](CAPABILITIES.md) describes supported behavior.
 Physical output remains unknown; display/controller/LED operation is unqualified.
 
 The shared [GP-MUSIC card](../../gigpies/docs/archive/records/2026-10-11-gp-music.md) owns harmonic/progression and tentative verse/chorus integration. Lightdesk contributes strict consumer validation and read-only presentation; Lux owns the analysis.

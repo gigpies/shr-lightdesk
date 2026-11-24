@@ -18,7 +18,24 @@ cannot acknowledge hidden review content. Controller input retains its acquisiti
 generation, and stale role/context/input cannot be replayed against a new target.
 
 The terminal footer exposes the same logical controls for software operation.
-The physical input worker/profile installation and target-device validation remain
+
+### Physical pads (production acquisition)
+
+`terminal … --controller-profile PADS.json` opens the named controller
+**read-only** through the shared `shr-instrument-panel` MIDI reader and feeds
+complete messages into the same `Surface::midi` role and generation fences.
+Disconnect clears held pads; nothing is sent to the device.
+
+```json
+{"contract": "SHR-LIGHTDESK-CONTROLLER", "version": 1,
+ "endpoint": "usb-Arturia_Arturia_MiniLab_mkII-00",
+ "pad_channel": 9, "pads": [36,37,38,39,40,41,42,43],
+ "hardware_qualified": false}
+```
+
+`endpoint` is the `/dev/snd/by-id` name and must equal the role-bound controller.
+Capture the real pad notes with Desk's read-only `shr-desk --controller-learn ENDPOINT`.
+Target-device validation remains
 [GP-H2](https://github.com/gigpies/gigpies/blob/main/docs/development/MODULE_IMPLEMENTATION_PLAN.md#gp-h2--physical-dual-console-operation).
 The older simulator mappings below are separate from this production menu path.
 

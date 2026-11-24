@@ -21,7 +21,7 @@ gallery DIRECTORY           seven full-HD state-driven SVG drafts and index.html
                             explicit read-only real Lux; no commands or auto-connect
 lux-control --socket-path PRIVATE_PATH --show-id UUID --epoch DECIMAL [--script PATH]
                             explicit real writable Lux; grant then operator commands
-terminal --socket-path PRIVATE_PATH --show-id UUID --epoch DECIMAL (Ratatui)
+terminal --socket-path PRIVATE_PATH --show-id UUID --epoch DECIMAL (Ratatui) [--controller-profile LEARNED.json]
 native --socket-path PRIVATE_PATH --show-id UUID --epoch DECIMAL (optional native feature)
 offscreen --socket-path PRIVATE_PATH --show-id UUID --epoch DECIMAL --script PATH --output DIRECTORY
                             real Lux actions and scene raster; no display/adapter opening
@@ -503,7 +503,19 @@ fn gallery(path: &Path) -> Result<(), String> {
     Ok(())
 }
 fn run() -> Result<(), String> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let mut args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(target_os = "linux")]
+    let controller = match args.iter().position(|a| a == "--controller-profile") {
+        Some(i) if i + 1 < args.len() && args.first().map(String::as_str) == Some("terminal") => {
+            let path = args.remove(i + 1);
+            args.remove(i);
+            Some(shr_lightdesk::controller_input::load_profile(Path::new(
+                &path,
+            ))?)
+        }
+        Some(_) => return Err("--controller-profile FILE applies to the terminal console".into()),
+        None => None,
+    };
     match args.as_slice() {
         #[cfg(target_os = "linux")]
         [
@@ -539,7 +551,7 @@ fn run() -> Result<(), String> {
                 }
             } else if command == "terminal" {
                 let role = shr_lightdesk::frontend::role_args(rest)?;
-                shr_lightdesk::terminal::run(path.into(), show.clone(), epoch, role)?;
+                shr_lightdesk::terminal::run(path.into(), show.clone(), epoch, role, controller)?;
             } else {
                 let role = shr_lightdesk::frontend::role_args(rest)?;
                 #[cfg(feature = "native")]

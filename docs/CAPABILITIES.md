@@ -4,7 +4,7 @@
 
 Capabilities describe supported contracts, not task status. Plans and progress
 live only in [the owning plan](GIGPIES_IMPLEMENTATION.md); dated evidence is in
-[Status](STATUS.md). A mock capability is never a physical output claim.
+the [evidence archive](archive/evidence-to-2026-11-24.md). A mock capability is never a physical output claim.
 
 | Capability | Current implementation | Remaining boundary |
 |---|---|---|
@@ -13,6 +13,7 @@ live only in [the owning plan](GIGPIES_IMPLEMENTATION.md); dated evidence is in
 | Analysis | LX05 calibration, bounded AUTO and retained-contribution provenance; opt-in music v1/v2 chord/key/Camelot, fifths motion and tentative section metadata from Lux | Beat/downbeat remain unavailable; legacy harmony field remains null; estimates do not establish musical truth |
 | Native surface | Optional winit/wgpu frontend, separate bounded provider/input queues, semantic actions and complete material review | Software/offscreen validation; physical display/controller acceptance separate |
 | Role ownership | Explicit GP09 process-held bindings and loss fencing | Injected descriptors; hardware discovery/profile qualification separate |
+| Controller input | Learned pad profile (`SHR-LIGHTDESK-CONTROLLER` v1) read through the shared read-only MIDI reader into `Surface::midi` | Learned MiniLab notes and physical checks (GP-H2) |
 
 ## Provider boundaries
 
